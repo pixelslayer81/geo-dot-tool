@@ -6,7 +6,7 @@ COPY frontend/package*.json ./
 RUN npm ci
 
 COPY frontend/ ./
-RUN npm run build
+RUN npm run build || (echo "=== BUILD FAILED ===" && cat /tmp/build.log 2>/dev/null; exit 1)
 
 
 # ── Stage 2: Python backend + serve built frontend ─────────────────────────
