@@ -1,0 +1,119 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ── Slider — thin line track, circle thumb, no fill gradient ── */
+input[type='range'] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 1px;
+  border-radius: 0;
+  background: #1E6EB7;
+  cursor: pointer;
+  outline: none;
+  display: block;
+}
+
+input[type='range']::-webkit-slider-runnable-track {
+  height: 1px;
+  background: #1E6EB7;
+  border-radius: 0;
+}
+
+input[type='range']::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #020c24;
+  border: 1.5px solid #59CEFA;
+  cursor: pointer;
+  box-shadow: none;
+  margin-top: -4px;
+}
+
+input[type='range']::-moz-range-track {
+  height: 1px;
+  background: #1E6EB7;
+  border-radius: 0;
+}
+
+input[type='range']::-moz-range-thumb {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #020c24;
+  border: 1.5px solid #59CEFA;
+  cursor: pointer;
+  box-shadow: none;
+}
+
+/* Reusable component classes */
+@layer components {
+  .section-heading {
+    @apply text-[10px] uppercase tracking-widest text-[#7CC3FB] font-semibold mb-3;
+  }
+}
+
+/* Generating... animated ellipsis */
+@keyframes generating-dots {
+  0%,  24% { content: '.';   }
+  25%, 49% { content: '..';  }
+  50%, 74% { content: '...'; }
+  75%,100% { content: '';    }
+}
+.generating-dots::after {
+  content: '';
+  animation: generating-dots 1.2s steps(1) infinite;
+}
+
+/* Leaflet map — keep background dark and cursor correct */
+.leaflet-container { background: #04153D !important; font-family: inherit; }
+.leaflet-interactive { cursor: pointer; }
+
+/* Zoom control */
+.leaflet-bar a,
+.leaflet-bar a:hover {
+  background: #084296 !important;
+  color: #59CEFA !important;
+  border-color: #1E6EB7 !important;
+}
+.leaflet-bar a:hover {
+  background: #1E6EB7 !important;
+}
+.leaflet-bar {
+  border: none !important;
+  box-shadow: none !important;
+}
+
+/* Scrollbar styling for the sidebar */
+.sidebar {
+  scrollbar-width: thin;
+  scrollbar-color: #59CEFA #071c4a;
+}
+.sidebar::-webkit-scrollbar {
+  width: 10px;
+}
+.sidebar::-webkit-scrollbar-track {
+  background: #071c4a;
+}
+.sidebar::-webkit-scrollbar-thumb {
+  background: #59CEFA;
+  border-radius: 0;
+  border: 2px solid #071c4a;
+}
+.sidebar::-webkit-scrollbar-thumb:hover {
+  background: #D0F2FE;
+}
+.sidebar::-webkit-scrollbar-button:vertical:decrement {
+  display: block;
+  height: 12px;
+  background: #071c4a url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10'%3E%3Cpolygon points='5,2 9,8 1,8' fill='%2359CEFA'/%3E%3C/svg%3E") center / 8px no-repeat;
+}
+.sidebar::-webkit-scrollbar-button:vertical:increment {
+  display: block;
+  height: 12px;
+  background: #071c4a url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10'%3E%3Cpolygon points='5,8 9,2 1,2' fill='%2359CEFA'/%3E%3C/svg%3E") center / 8px no-repeat;
+}
