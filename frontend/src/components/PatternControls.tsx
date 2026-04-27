@@ -8,8 +8,12 @@ const DEFAULT_PRESETS: { label: string; pattern: PatternConfig; colors: ColorCon
     label: 'Preset 01',
     pattern: {
       grid_spacing: 7.5,
+      grid_spacing_x: 0,
+      grid_spacing_y: 0,
       dot_radius: 0.37,
       jitter: 0,
+      row_offset_x: 0,
+      row_offset_y: 0,
       edge_fade: true,
       edge_fade_cells: 2.0,
       dot_shape: 'circle_dot',
@@ -940,7 +944,7 @@ export default function PatternControls({ pattern, onChange, colors, onColorsCha
                 editFormat={(v) => v.toFixed(2)}
                 editParse={(s) => parseFloat(s)}
                 onChange={(v) => {
-                  const next = { circle: 1.0, circle_dot: 1.0, circle_outline: 1.0, ...scales, [id]: v }
+                  const next = Object.assign({ circle: 1.0, circle_dot: 1.0, circle_outline: 1.0 }, scales, { [id]: v })
                   onChange({ ...pattern, element_scales: next })
                 }}
               />
@@ -969,7 +973,7 @@ export default function PatternControls({ pattern, onChange, colors, onColorsCha
                 editFormat={(v) => String(Math.round(v))}
                 editParse={(s) => parseFloat(s)}
                 onChange={(v) => {
-                  const next = { circle: 0.0, circle_dot: 0.0, circle_outline: 0.0, ...rotations, [id]: v }
+                  const next = Object.assign({ circle: 0.0, circle_dot: 0.0, circle_outline: 0.0 }, rotations, { [id]: v })
                   onChange({ ...pattern, element_rotations: next })
                 }}
               />

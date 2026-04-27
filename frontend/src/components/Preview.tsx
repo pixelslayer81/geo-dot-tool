@@ -367,8 +367,9 @@ export default function Preview({
   useEffect(() => {
     const el = outerRef.current
     if (!el) return
+    const elNN = el
 
-    function setCursor(c: string) { el.style.cursor = c }
+    function setCursor(c: string) { elNN.style.cursor = c }
 
     function onKeyDown(e: KeyboardEvent) {
       if (e.code !== 'Space') return

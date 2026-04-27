@@ -311,7 +311,7 @@ export default function ColorOverridePanel({ colors, onChange, onApplySingleColo
             <div>
               <p className="text-[10px] uppercase tracking-widest text-[#7CC3FB] font-semibold mb-2">Combinations</p>
               <div className="grid grid-cols-2 gap-1.5">
-                {palette.combos.map(({ name, fills, bg }) => (
+                {palette.combos.map(({ name, fills }) => (
                   <button
                     key={name}
                     onClick={() => applyFills(fills)}

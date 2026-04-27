@@ -111,7 +111,7 @@ export default function MapPicker({
     if (!map || !geoData) return
     layerRef.current?.remove()
 
-    const layer = L.geoJSON(geoData as L.GeoJsonObject, {
+    const layer = L.geoJSON(geoData as unknown as Parameters<typeof L.geoJSON>[0], {
       style: f => {
         const shapeId = f?.properties?.shape_id ?? ''
         const partId  = f?.properties?.part_id  ?? ''
