@@ -493,11 +493,8 @@ def _add_dot_to_container(container, dwg, dot, width: int, height: int, dot_shap
 
 
 def _make_layer(dwg, layer_id: str, label: str):
-    """Create an Inkscape/Illustrator-compatible SVG layer group."""
-    g = dwg.g(id=layer_id)
-    g['inkscape:groupmode'] = 'layer'
-    g['inkscape:label'] = label
-    return g
+    """Create a labeled SVG group (compatible with all SVG renderers)."""
+    return dwg.g(id=layer_id)
 
 
 def render_svg(
@@ -518,8 +515,6 @@ def render_svg(
         size=(f"{width}px", f"{height}px"),
         viewBox=f"0 0 {width} {height}",
     )
-    # Add Inkscape namespace so layer attributes are valid
-    dwg['xmlns:inkscape'] = 'http://www.inkscape.org/namespaces/inkscape'
 
     # Background layer
     bg_layer = _make_layer(dwg, 'background', 'Background')
