@@ -156,10 +156,10 @@ export default function ShapePanel({ shapes, selectedShape, selectedParts, onSha
         <div className="flex gap-1">
           <button
             onClick={() => fileRef.current?.click()}
-            disabled={uploading}
-            className="flex-1 py-2 text-sm font-medium transition-colors bg-transparent hover:bg-[#0a2555] border text-[#59CEFA] border-[#1E6EB7] disabled:opacity-50"
+            disabled={uploading || uploadedShapes.length > 0}
+            className="flex-1 py-2 text-sm font-medium transition-colors bg-transparent hover:bg-[#0a2555] border text-[#59CEFA] border-[#1E6EB7] disabled:opacity-40 disabled:cursor-not-allowed"
           >
-            {uploading ? 'Uploading…' : '+ Upload PNG / JPG +'}
+            {uploading ? 'Uploading…' : uploadedShapes.length > 0 ? 'Image uploaded' : '+ Upload PNG / JPG +'}
           </button>
           {uploadedShapes.length > 0 && (
             <button

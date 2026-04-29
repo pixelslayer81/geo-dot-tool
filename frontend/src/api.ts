@@ -60,6 +60,26 @@ export async function requestPreview(
   return r.json()
 }
 
+export async function requestRenderDots(
+  dots: import('./types').DotData[],
+  shapeName: string,
+  pattern: PatternConfig,
+  colors: ColorConfig,
+  resolutions: string[],
+  formats: string[],
+): Promise<{ name: string; data: string }[]> {
+  const r = await fetch(`${BASE}/render-dots`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ dots, shape_name: shapeName, pattern, colors, resolutions, formats }),
+  })
+  if (!r.ok) {
+    const msg = await r.text()
+    throw new Error(msg || 'Export failed')
+  }
+  return (await r.json()).files
+}
+
 export async function requestExport(
   shape: string,
   pattern: PatternConfig,
@@ -68,7 +88,7 @@ export async function requestExport(
   formats: string[],
   parts: string[] = [],
   fill_canvas: boolean = false,
-): Promise<Blob> {
+): Promise<{ name: string; data: string }[]> {
   const r = await fetch(`${BASE}/export`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -78,7 +98,7 @@ export async function requestExport(
     const msg = await r.text()
     throw new Error(msg || 'Export failed')
   }
-  return r.blob()
+  return (await r.json()).files
 }
 
 export async function requestDots(

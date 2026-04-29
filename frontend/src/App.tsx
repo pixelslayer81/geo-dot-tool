@@ -65,6 +65,7 @@ export default function App() {
   const [shapeOutlineImage, setShapeOutlineImage] = useState<string | null>(null)
   const [dotsResult, setDotsResult]         = useState<DotsResult | null>(null)
   const [previewLoading, setPreviewLoading] = useState(false)
+  const [isExporting, setIsExporting] = useState(false)
   const [previewError, setPreviewError]     = useState('')
   const [dotCount, setDotCount]             = useState(0)
   const previewSizeRef = useRef<{ w: number; h: number }>({ w: 100, h: 100 })
@@ -74,6 +75,7 @@ export default function App() {
   const debouncedPattern = useDebounce(pattern, 600)
   const debouncedColors  = useDebounce(colors, 600)
   const abortRef = useRef<AbortController | null>(null)
+  const outlineAbortRef = useRef<AbortController | null>(null)
   const outlineImageAbortRef = useRef<AbortController | null>(null)
 
   // True once the user touches Pattern or Color controls after selecting a shape.
@@ -91,21 +93,29 @@ export default function App() {
   // Outline — fires on shape select (and aspect/offset tweaks before user touches pattern)
   useEffect(() => {
     if (!debouncedShape || patternDirtyRef.current || hideShape) return
-    abortRef.current?.abort()
+    outlineAbortRef.current?.abort()
     const ctrl = new AbortController()
-    abortRef.current = ctrl
+    outlineAbortRef.current = ctrl
     setPreviewLoading(true)
     setPreviewError('')
 
+    const isUpload = debouncedShape.startsWith('upload_')
     requestOutline(debouncedShape, debouncedPattern, debouncedColors, 2500, debouncedParts)
       .then((res) => {
         if (ctrl.signal.aborted) return
         previewSizeRef.current = { w: res.width, h: res.height }
-        setPreviewImage(res.image)
         setShapeOutlineImage(res.image)
-        setDotsResult(null)
-        setDotCount(0)
-        setPreviewLoading(false)
+        if (isUpload) {
+          // Set previewImage as fallback (shown when no dots exist yet)
+          // shapeOutlineImage shows as 20% overlay when dots exist
+          setPreviewImage(res.image)
+          setPreviewLoading(false)
+        } else {
+          setPreviewImage(res.image)
+          setDotsResult(null)
+          setDotCount(0)
+          setPreviewLoading(false)
+        }
       })
       .catch((err) => {
         if (ctrl.signal.aborted) return
@@ -524,8 +534,18 @@ export default function App() {
                 onOpenMap={() => setMapOpen(true)}
                 mapOpen={mapOpen}
                 onShapeChange={(id, label) => {
-                  if (dotsCreated && id) {
-                    // Dots exist — keep current fill/apply mode, fetch overlay immediately
+                  if (id.startsWith('upload_')) {
+                    // New silhouette: keep existing dots visible underneath, show outline as overlay
+                    patternDirtyRef.current = false
+                    setSelectedShape(id)
+                    setSelectedShapeName(label)
+                    setSelectedParts([])
+                    setPreviewImage(null)
+                    setShapeOutlineImage(null)
+                    setShowShapeOverlay(true)
+                    // Outline effect fires automatically (patternDirty=false) and sets shapeOutlineImage
+                  } else if (dotsCreated && id) {
+                    // Map shape with dots — auto-trigger regeneration
                     patternDirtyRef.current = true
                     setSelectedShape(id)
                     setSelectedShapeName(label)
@@ -535,15 +555,13 @@ export default function App() {
                       .then(res => setShapeOutlineImage(res.image))
                       .catch(() => {})
                   } else {
+                    // Clear (id='') or fresh shape with no dots
                     patternDirtyRef.current = false
                     setSelectedShape(id)
                     setSelectedShapeName(label)
                     setSelectedParts([])
                     setPreviewImage(null)
                     setShapeOutlineImage(null)
-                    setDotsResult(null)
-                    setHideShape(false)
-                    setFillCanvas(false)
                     setShowShapeOverlay(true)
                   }
                 }}
@@ -566,10 +584,12 @@ export default function App() {
           <div className="flex-1 overflow-y-auto">
             <ExportPanel
               shape={selectedShape}
-              parts={selectedParts}
+              shapeName={selectedShapeName}
               pattern={pattern}
               colors={colors}
-              disabled={!selectedShape}
+              disabled={!dotsCreated}
+              dotsResult={dotsResult}
+              onExportingChange={setIsExporting}
             />
           </div>
         )}
@@ -578,7 +598,7 @@ export default function App() {
       {/* ── Main area ───────────────────────────────────────── */}
       <main className="flex-1 flex flex-col min-w-0">
         <div className="flex-shrink-0 flex items-center justify-end px-5 py-3 border-b border-[#0a2555]">
-          <DotTitle text="DOTDASHER" loading={previewLoading} />
+          <DotTitle text="DOTDASHER" loading={previewLoading || isExporting} />
         </div>
         <Preview
           image={previewImage}

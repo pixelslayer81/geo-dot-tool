@@ -21,7 +21,7 @@ import numpy as np
 from PIL import Image as PILImage
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import Response
+from fastapi.responses import JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 from color_schemes import SCHEMES
@@ -30,10 +30,10 @@ def _hex_to_rgba(hex_color: str) -> tuple:
     h = hex_color.lstrip("#")
     return int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16), 255
 from dot_engine import Dot as DotCls, generate_dots
-from exporter import ASPECT_RATIOS, BASE_WIDTH, generate_export_zip, get_resolution, render_png
+from exporter import ASPECT_RATIOS, BASE_WIDTH, generate_export_files, get_resolution, render_png
 from geo_loader import get_shapes_catalog, get_world_geojson, parts_to_mask, shape_to_mask
 from mask_processor import get_grayscale, get_mask, process_uploaded_mask
-from schemas import ColorConfig, ExportRequest, PatternConfig, PreviewRequest, SchemeInfo
+from schemas import ColorConfig, ExportRequest, PatternConfig, PreviewRequest, RenderDotsRequest, SchemeInfo
 
 
 # Shape always fills this fraction of the shorter canvas dimension
@@ -613,63 +613,41 @@ def outline(req: PreviewRequest):
     # Uploaded images: apply the same transform pipeline as built-in shapes
     # so that rotation/scale/offset are reflected in the returned image.
     if req.shape.startswith("upload_"):
-        gray = get_grayscale(req.shape)
-        if gray is None:
+        invert = getattr(req.pattern, 'mask_invert', False)
+        raw_mask = get_mask(req.shape, invert=invert)
+        if raw_mask is None:
             raise HTTPException(404, f"Uploaded mask '{req.shape}' not found. Re-upload the image.")
 
-        ref_size = gray.shape  # (h, w) before rotation — used as stable scale reference
+        ref_size = raw_mask.shape
 
-        # Apply rotation (same convention as _apply_shape_transform: positive = clockwise)
+        # Apply rotation (positive = clockwise, PIL uses CCW so negate)
         if req.pattern.transform_rotation != 0.0:
-            img_pil = PILImage.fromarray(gray)
+            img_pil = PILImage.fromarray(raw_mask)
             img_pil = img_pil.rotate(-req.pattern.transform_rotation, expand=True, fillcolor=0)
-            gray_rot = np.array(img_pil)
-        else:
-            gray_rot = gray
+            raw_mask = np.array(img_pil)
 
-        # Determine canvas dimensions from pattern aspect ratio (same as pad_mask)
-        rw_ar, rh_ar = ASPECT_RATIOS.get(req.pattern.aspect_ratio, (16, 9))
-        if rw_ar >= rh_ar:
-            canvas_w = req.preview_width
-            canvas_h = max(1, int(round(req.preview_width * rh_ar / rw_ar)))
-        else:
-            canvas_h = req.preview_width
-            canvas_w = max(1, int(round(req.preview_width * rw_ar / rh_ar)))
+        # Use pad_mask so offset/scale/aspect match dot generation exactly
+        mask = pad_mask(raw_mask, req.pattern.aspect_ratio,
+                        req.pattern.x_offset, req.pattern.y_offset, shape=req.shape,
+                        transform_scale=req.pattern.transform_scale, ref_size=ref_size)
 
-        # Scale to fill _FILL of canvas, using unrotated ref_size (same as pad_mask)
-        ref_h, ref_w = ref_size
-        h_rot, w_rot = gray_rot.shape
-        fill = _FILL * req.pattern.transform_scale
-        scale_f = min((canvas_w * fill) / max(ref_w, 1), (canvas_h * fill) / max(ref_h, 1))
-        new_w = max(1, int(round(w_rot * scale_f)))
-        new_h = max(1, int(round(h_rot * scale_f)))
+        h_orig, w_orig = mask.shape
+        aspect = h_orig / max(w_orig, 1)
+        pw = req.preview_width
+        ph = max(1, int(pw * aspect))
 
-        scaled = np.array(PILImage.fromarray(gray_rot).resize((new_w, new_h), PILImage.BILINEAR))
+        SS = 4
+        hi_w, hi_h = pw * SS, ph * SS
+        binary_hi = np.array(PILImage.fromarray(mask).resize((hi_w, hi_h), PILImage.NEAREST)) > 128
 
-        # Centre on canvas then apply x/y offset (same logic as pad_mask)
-        x_off = (canvas_w - new_w) // 2 + int(round(req.pattern.x_offset * canvas_w))
-        y_off = (canvas_h - new_h) // 2 + int(round(req.pattern.y_offset * canvas_h))
+        arr_hi = np.zeros((hi_h, hi_w, 4), dtype=np.uint8)
+        arr_hi[binary_hi] = (7, 25, 55, 255)
 
-        src_x = max(0, -x_off);  src_y = max(0, -y_off)
-        dst_x = max(0, x_off);   dst_y = max(0, y_off)
-        copy_w = min(new_w - src_x, canvas_w - dst_x)
-        copy_h = min(new_h - src_y, canvas_h - dst_y)
-
-        canvas_g = np.zeros((canvas_h, canvas_w), dtype=np.uint8)
-        if copy_w > 0 and copy_h > 0:
-            canvas_g[dst_y:dst_y + copy_h, dst_x:dst_x + copy_w] = \
-                scaled[src_y:src_y + copy_h, src_x:src_x + copy_w]
-
-        # Apply invert for display: flip luminance so the shape reads correctly
-        if getattr(req.pattern, 'mask_invert', False):
-            canvas_g = 255 - canvas_g
-
-        arr = np.stack([canvas_g, canvas_g, canvas_g, np.full_like(canvas_g, 255)], axis=-1)
-        img = PILImage.fromarray(arr.astype(np.uint8), mode="RGBA")
+        img = PILImage.fromarray(arr_hi, mode="RGBA").resize((pw, ph), PILImage.LANCZOS)
         buf = io.BytesIO()
         img.save(buf, format="PNG")
         b64 = base64.b64encode(buf.getvalue()).decode()
-        return {"image": f"data:image/png;base64,{b64}", "width": canvas_w, "height": canvas_h}
+        return {"image": f"data:image/png;base64,{b64}", "width": pw, "height": ph}
 
     _raw = _resolve_mask(req.shape, req.parts or None, invert=getattr(req.pattern, 'mask_invert', False))
     _ref_size = _raw.shape
@@ -910,7 +888,7 @@ def export(req: ExportRequest):
         dots = _gen_dots_for_shape(mask, config, req.pattern, req.colors, req.pattern.seed)
 
     export_bg_grad = {'start': req.colors.background_gradient.start, 'end': req.colors.background_gradient.end, 'direction': req.colors.background_gradient.direction} if req.colors.background_gradient else None
-    zip_bytes = generate_export_zip(
+    files = generate_export_files(
         dots=dots,
         shape_name=req.shape,
         resolutions=req.resolutions,
@@ -920,14 +898,44 @@ def export(req: ExportRequest):
         aspect_ratio=req.pattern.aspect_ratio,
         background_gradient=export_bg_grad,
     )
+    return JSONResponse({"files": files})
 
-    suffix = "pattern" if req.fill_canvas else "shape"
-    filename = f"{req.shape}_{suffix}_dot_assets.zip"
-    return Response(
-        content=zip_bytes,
-        media_type="application/zip",
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+
+@app.post("/api/render-dots")
+def render_dots(req: RenderDotsRequest):
+    """Render pre-computed dot data (from the canvas) at the requested resolution/format.
+    This guarantees the export exactly matches what is displayed on the canvas."""
+    from dot_engine import Dot as DotCls
+    dots = [
+        DotCls(
+            x=d.x, y=d.y, radius=d.radius,
+            color=d.color, shape=d.shape,
+            outline_color=d.outline_color,
+            inner_color=d.inner_color,
+            stroke_width=d.stroke_width,
+            rotation=d.rotation,
+        )
+        for d in req.dots
+    ]
+    export_bg_grad = (
+        {
+            'start': req.colors.background_gradient.start,
+            'end': req.colors.background_gradient.end,
+            'direction': req.colors.background_gradient.direction,
+        }
+        if req.colors.background_gradient else None
     )
+    files = generate_export_files(
+        dots=dots,
+        shape_name=req.shape_name or 'export',
+        resolutions=req.resolutions,
+        formats=req.formats,
+        background=req.colors.background,
+        dot_shape=req.pattern.dot_shape,
+        aspect_ratio=req.pattern.aspect_ratio,
+        background_gradient=export_bg_grad,
+    )
+    return JSONResponse({"files": files})
 
 
 @app.post("/api/upload-mask")

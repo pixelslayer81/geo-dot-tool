@@ -995,6 +995,24 @@ export default function PatternControls({ pattern, onChange, colors, onColorsCha
           onChange={(v) => onChange({ ...pattern, outline_stroke: v })}
         />
 
+        {/* Seed */}
+        <div className="mb-1">
+          <div className="flex justify-between items-center mb-2">
+            <label className="text-xs text-[#A0D8F8]">Random seed</label>
+            <span className="text-xs text-brand-cyan font-mono">{pattern.seed}</span>
+          </div>
+          <div className="flex gap-1">
+            <input type="number" value={pattern.seed} min={0} max={9999}
+              onChange={(e) => set('seed', parseInt(e.target.value) || 0)}
+              className="flex-1 bg-[#0d3068] border border-[#1E6EB7] px-2 py-1 text-xs text-white focus:outline-none focus:border-brand-cyan"
+            />
+            <button onClick={() => set('seed', Math.floor(Math.random() * 10000))}
+              className="px-2 py-1 bg-[#0d3068] border border-[#1E6EB7] text-xs text-[#A0D8F8] hover:text-white hover:border-brand-cyan transition-colors"
+              title="Randomize seed"
+            >⟳</button>
+          </div>
+        </div>
+
         {/* Size Map */}
         <div className="mb-4">
           <p className="text-xs text-[#A0D8F8] mb-2">Size map</p>
@@ -1145,16 +1163,6 @@ export default function PatternControls({ pattern, onChange, colors, onColorsCha
                       >Fill frame</button>
                     </div>
                   </div>
-                  <Slider
-                    label="Image scale"
-                    value={pattern.size_mod_image_scale}
-                    min={0.1} max={4.0} step={0.05}
-                    typeMax={20}
-                    format={(v) => `${v.toFixed(2)}×`}
-                    editFormat={(v) => v.toFixed(2)}
-                    editParse={(s) => parseFloat(s)}
-                    onChange={(v) => onChange({ ...pattern, size_mod_image_scale: v })}
-                  />
                   <Slider
                     label="Contrast"
                     value={pattern.size_mod_image_contrast ?? 1.0}
@@ -1507,24 +1515,6 @@ export default function PatternControls({ pattern, onChange, colors, onColorsCha
             )}
           </div>
         )}
-      </div>
-
-      {/* Seed */}
-      <div className="mb-1">
-        <div className="flex justify-between items-center mb-2">
-          <label className="text-xs text-[#A0D8F8]">Random seed</label>
-          <span className="text-xs text-brand-cyan font-mono">{pattern.seed}</span>
-        </div>
-        <div className="flex gap-1">
-          <input type="number" value={pattern.seed} min={0} max={9999}
-            onChange={(e) => set('seed', parseInt(e.target.value) || 0)}
-            className="flex-1 bg-[#0d3068] border border-[#1E6EB7] px-2 py-1 text-xs text-white focus:outline-none focus:border-brand-cyan"
-          />
-          <button onClick={() => set('seed', Math.floor(Math.random() * 10000))}
-            className="px-2 py-1 bg-[#0d3068] border border-[#1E6EB7] text-xs text-[#A0D8F8] hover:text-white hover:border-brand-cyan transition-colors"
-            title="Randomize seed"
-          >⟳</button>
-        </div>
       </div>
 
     </section>

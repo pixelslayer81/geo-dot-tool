@@ -1,17 +1,18 @@
-import { useState, useEffect, useRef } from 'react'
-import { requestExport } from '../api'
-import type { ColorConfig, PatternConfig } from '../types'
+import { useState } from 'react'
+import { requestRenderDots } from '../api'
+import type { ColorConfig, DotsResult, PatternConfig } from '../types'
 
 interface Props {
   shape: string
-  parts: string[]
+  shapeName: string
   pattern: PatternConfig
   colors: ColorConfig
   disabled: boolean
+  dotsResult: DotsResult | null
+  onExportingChange?: (v: boolean) => void
 }
 
 const RESOLUTIONS = [
-  { id: '2k', label: '2K', sub: '2048 × 2048' },
   { id: '4k', label: '4K', sub: '4096 × 4096' },
   { id: '6k', label: '6K', sub: '6144 × 6144' },
   { id: '8k', label: '8K', sub: '8192 × 8192' },
@@ -23,16 +24,9 @@ const FORMATS = [
   { id: 'svg',       label: 'SVG',         sub: 'Vector / infinite scale' },
 ]
 
-const CONTENT_MODES = [
-  { id: 'pattern', label: 'Pattern', sub: 'Full canvas' },
-  { id: 'shape',   label: 'Shape',   sub: 'Masked to shape' },
-  { id: 'both',    label: 'Both',    sub: 'Two ZIPs' },
-]
-
-export default function ExportPanel({ shape, parts, pattern, colors, disabled }: Props) {
-  const [resolutions, setResolutions] = useState<Set<string>>(new Set())
-  const [formats, setFormats] = useState<Set<string>>(new Set())
-  const [contentMode, setContentMode] = useState<'pattern' | 'shape' | 'both'>('shape')
+export default function ExportPanel({ shape, shapeName, pattern, colors, disabled, dotsResult, onExportingChange }: Props) {
+  const [resolutions, setResolutions] = useState<Set<string>>(new Set(['4k']))
+  const [formats, setFormats] = useState<Set<string>>(new Set(['png']))
   const [exporting, setExporting] = useState(false)
   const [exportError, setExportError] = useState('')
 
@@ -42,84 +36,48 @@ export default function ExportPanel({ shape, parts, pattern, colors, disabled }:
     return next
   }
 
-  function triggerDownload(blob: Blob, filename: string) {
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = filename
-    a.click()
-    URL.revokeObjectURL(url)
+  function downloadFiles(files: { name: string; data: string }[]) {
+    for (const file of files) {
+      const bytes = Uint8Array.from(atob(file.data), c => c.charCodeAt(0))
+      const blob = new Blob([bytes])
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = file.name
+      a.click()
+      URL.revokeObjectURL(url)
+    }
   }
 
   async function handleExport() {
-    if (!shape || resolutions.size === 0 || formats.size === 0) return
+    if (resolutions.size === 0 || formats.size === 0) return
+    if (!dotsResult || dotsResult.dots.length === 0) return
     setExporting(true)
+    onExportingChange?.(true)
     setExportError('')
     try {
       const res = [...resolutions]
       const fmt = [...formats]
-      if (contentMode === 'both') {
-        const [patternBlob, shapeBlob] = await Promise.all([
-          requestExport(shape, pattern, colors, res, fmt, parts, true),
-          requestExport(shape, pattern, colors, res, fmt, parts, false),
-        ])
-        triggerDownload(patternBlob, `${shape}_pattern_dot_assets.zip`)
-        triggerDownload(shapeBlob, `${shape}_shape_dot_assets.zip`)
-      } else {
-        const fillCanvas = contentMode === 'pattern'
-        const blob = await requestExport(shape, pattern, colors, res, fmt, parts, fillCanvas)
-        const suffix = fillCanvas ? 'pattern' : 'shape'
-        triggerDownload(blob, `${shape}_${suffix}_dot_assets.zip`)
-      }
+      const name = shapeName || shape || 'export'
+      const files = await requestRenderDots(dotsResult.dots, name, pattern, colors, res, fmt)
+      downloadFiles(files)
     } catch (err: unknown) {
       setExportError(err instanceof Error ? err.message : 'Export failed')
     } finally {
       setExporting(false)
+      onExportingChange?.(false)
     }
   }
 
-  const canExport = !disabled && !exporting && !!shape && resolutions.size > 0 && formats.size > 0
-
-  // Keep a ref to always-latest handleExport so the effect never has a stale closure
-  const handleExportRef = useRef(handleExport)
-  handleExportRef.current = handleExport
-
-  const didMountRef = useRef(false)
-  useEffect(() => {
-    if (!didMountRef.current) { didMountRef.current = true; return }
-    handleExportRef.current()
-  }, [resolutions, formats]) // eslint-disable-line react-hooks/exhaustive-deps
+  const hasDots = !!dotsResult && dotsResult.dots.length > 0
+  const canExport = !disabled && !exporting && hasDots && resolutions.size > 0 && formats.size > 0
 
   return (
     <div className="px-5 py-4 space-y-6">
-      {/* Content */}
-      <div>
-        <p className="text-xs text-[#A0D8F8] mb-2">Content</p>
-        <div className="grid grid-cols-3 gap-1.5">
-          {CONTENT_MODES.map((c) => {
-            const on = contentMode === c.id
-            return (
-              <button
-                key={c.id}
-                onClick={() => setContentMode(c.id as 'pattern' | 'shape' | 'both')}
-                className={`flex flex-col items-center py-2 px-1 text-center transition-colors
-                  ${on
-                    ? 'bg-brand-cyan/10 border border-brand-cyan text-brand-cyan'
-                    : 'bg-[#0d3068] border border-[#1E6EB7] text-[#7CC3FB] hover:border-[#59CEFA]'
-                  }`}
-              >
-                <span className="text-xs font-semibold">{c.label}</span>
-                <span className="text-[9px] leading-tight text-current opacity-70">{c.sub}</span>
-              </button>
-            )
-          })}
-        </div>
-      </div>
-
       {/* Resolutions */}
       <div>
         <p className="text-xs text-[#A0D8F8] mb-2">Resolutions</p>
-        <div className="grid grid-cols-4 gap-1.5">
+        <div className="grid grid-cols-3 gap-1.5">
           {RESOLUTIONS.map((r) => {
             const on = resolutions.has(r.id)
             return (

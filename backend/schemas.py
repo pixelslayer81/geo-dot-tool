@@ -170,6 +170,31 @@ class ExportRequest(BaseModel):
                                 description="One or more of: png, png_alpha, svg")
 
 
+class DotItem(BaseModel):
+    x: float
+    y: float
+    radius: float
+    color: str
+    shape: str = "circle"
+    outline_color: str = ""
+    inner_color: str = ""
+    stroke_width: float = 0.14
+    rotation: float = 0.0
+
+
+class RenderDotsRequest(BaseModel):
+    dots: List[DotItem]
+    shape_name: str = "export"
+    pattern: PatternConfig = PatternConfig()
+    colors: ColorConfig = ColorConfig(
+        colors=["#00A4EF", "#737373"],
+        ratios=[0.60, 0.40],
+        background="#EAEAEA",
+    )
+    resolutions: List[str] = Field(default=["4k"])
+    formats: List[str] = Field(default=["png"])
+
+
 class ShapeInfo(BaseModel):
     id: str
     name: str
